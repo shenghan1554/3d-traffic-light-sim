@@ -39,6 +39,13 @@ import sys
 import threading
 import time
 
+# Windows 控制台（含 CI runner）默认编码可能不是 UTF-8，避免中文输出抛 UnicodeEncodeError
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:  # noqa: BLE001
+    pass
+
 # ==================== 与 IO映射表.md 一致的地址 ====================
 ADDR_Y = 0xFC00          # Y0-Y15 输出线圈（灯）
 ADDR_X = 0xF800          # X0-X7  输入线圈

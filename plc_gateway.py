@@ -39,6 +39,7 @@ import websockets
 
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     import os
     os.system("chcp 65001 >nul 2>&1")
 except Exception:
@@ -259,7 +260,7 @@ if __name__ == "__main__":
     p.add_argument("--check", action="store_true", help="只自检并打印 Y/X/M/D")
     args = p.parse_args()
     if args.check:
-        self_check(args.ip)
+        sys.exit(0 if self_check(args.ip) else 1)
     else:
         try:
             asyncio.run(main(args.ip))

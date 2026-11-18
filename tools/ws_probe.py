@@ -18,6 +18,13 @@ import sys
 
 import websockets
 
+# Windows 控制台（含 CI runner）默认编码可能不是 UTF-8
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:  # noqa: BLE001
+    pass
+
 
 async def run(url: str, frames: int, write: str | None, timeout: float) -> int:
     async with websockets.connect(url, open_timeout=timeout) as ws:

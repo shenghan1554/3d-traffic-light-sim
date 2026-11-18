@@ -172,6 +172,8 @@ python plc_gateway.py --check
 python tools\ws_probe.py --frames 3 --write X3=1
 ```
 
+`plc_gateway.py --check` 的退出码：读到数据返回 `0`，连不上返回 `1`——方便脚本和 CI 判断。
+
 CI（[.github/workflows/ci.yml](.github/workflows/ci.yml)）会跑 Python 编译检查、模拟器自检、
 页面自包含检查与仓库卫生检查。
 
