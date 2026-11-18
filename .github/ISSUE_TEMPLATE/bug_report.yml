@@ -1,0 +1,69 @@
+name: 问题反馈
+description: 报告仿真、网关或 PLC 联机问题
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交前请先搜索[已有 Issue](https://github.com/shenghan1554/3d-traffic-light-sim/issues)。
+        **请勿上传产线/客户现场截图或 PLC 程序文件**，日志请先脱敏。
+  - type: dropdown
+    id: area
+    attributes:
+      label: 问题类型
+      options:
+        - 3D 页面（灯、车流、视角、面板）
+        - 网关 plc_gateway.py
+        - 模拟器 tools/mock_plc.py
+        - 真实汇川 Easy PLC 联机
+        - 安装包 / 卸载
+        - 构建打包
+        - 其他
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: 系统与浏览器
+      placeholder: "Windows 11 23H2 / Chrome 140"
+    validations:
+      required: true
+  - type: input
+    id: plc
+    attributes:
+      label: PLC 型号与固件（连真机时填写）
+      placeholder: "Easy 系列 / AM401 / 固件版本…；或用 tools/mock_plc.py 模拟"
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 启动 ...
+        2. 打开页面并连接 ...
+        3. 出现 ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望结果
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际结果 / 日志
+      description: 终端输出（`plc_gateway.py --check`、`tools/ws_probe.py`）、浏览器控制台报错
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 确认
+      options:
+        - label: 我已用 tools/mock_plc.py 复现过（如适用）
+          required: false
+        - label: 我已搜索过已有 Issue
+          required: true
+        - label: 我没有上传敏感信息
+          required: true

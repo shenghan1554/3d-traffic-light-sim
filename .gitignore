@@ -1,0 +1,17 @@
+# 构建产物
+*.exe
+dist/
+build/
+*.spec.bak
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 日志与临时
+*.log
+*.tmp
+Thumbs.db
+desktop.ini

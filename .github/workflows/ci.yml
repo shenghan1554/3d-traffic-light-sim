@@ -1,0 +1,139 @@
+name: ci
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python 检查（${{ matrix.python }}）
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: [ '3.10', '3.12' ]
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: 安装依赖
+        run: python -m pip install -r requirements.txt
+
+      - name: 编译检查
+        run: python -m compileall -q plc_gateway.py tools packaging
+
+      - name: 模拟器自检（相位 + Modbus 协议回环）
+        run: python tools/mock_plc.py --selftest
+
+  e2e:
+    name: 端到端（模拟 PLC → 网关 → WebSocket）
+    runs-on: windows-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 安装依赖
+        run: python -m pip install -r requirements.txt
+
+      - name: 启动模拟 PLC 与网关，验证推送与写线圈
+        shell: pwsh
+        run: |
+          $mock = Start-Process -FilePath python -ArgumentList 'tools/mock_plc.py' -PassThru -WindowStyle Hidden `
+            -RedirectStandardOutput mock.out -RedirectStandardError mock.err
+          Start-Sleep -Seconds 2
+          if ($mock.HasExited) {
+            Get-Content mock.err
+            throw '模拟 PLC 启动失败'
+          }
+
+          $gw = Start-Process -FilePath python -ArgumentList 'plc_gateway.py' -PassThru -WindowStyle Hidden `
+            -RedirectStandardOutput gw.out -RedirectStandardError gw.err
+          Start-Sleep -Seconds 3
+          if ($gw.HasExited) {
+            Get-Content gw.err
+            throw '网关启动失败'
+          }
+
+          try {
+            python plc_gateway.py --check
+            if ($LASTEXITCODE -ne 0) { throw '网关自检失败' }
+            python tools/ws_probe.py --frames 2 --write X3=1
+            if ($LASTEXITCODE -ne 0) { throw 'WebSocket 探针失败' }
+          } finally {
+            Stop-Process -Id $gw.Id -Force -ErrorAction SilentlyContinue
+            Stop-Process -Id $mock.Id -Force -ErrorAction SilentlyContinue
+          }
+
+  page:
+    name: 页面自包含检查
+    runs-on: windows-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 校验单文件页面
+        shell: pwsh
+        run: |
+          $path = '交通灯仿真.html'
+          if (-not (Test-Path $path)) { throw "缺少 $path" }
+          $text = Get-Content $path -Raw -Encoding UTF8
+          $size = (Get-Item $path).Length
+          if ($size -lt 400KB) { throw "页面体积异常（$size 字节），three.js 可能未内嵌" }
+          if ($text -notmatch 'Copyright 2010-2021 Three\.js Authors') { throw '缺少 three.js MIT 许可声明' }
+          if ($text -notmatch 'SPDX-License-Identifier:\s*MIT') { throw '缺少 SPDX 许可标识' }
+          if ($text -match '<script[^>]+src\s*=') { throw '发现外部 script 引用，页面应保持自包含' }
+          if ($text -notmatch 'WebSocket') { throw '页面缺少 WebSocket 客户端代码' }
+          if ($text -notmatch 'ws://localhost:8765') { throw '页面缺少默认网关地址' }
+          Write-Host "OK：页面自包含，体积 $size 字节"
+
+  repo-hygiene:
+    name: 仓库卫生检查
+    runs-on: windows-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 确认没有误提交构建产物或本机文件
+        shell: pwsh
+        run: |
+          $bad = Get-ChildItem -Recurse -File -Force |
+            Where-Object {
+              $_.FullName -notmatch '\\\.git\\' -and
+              ($_.Extension -in @('.exe', '.pyc', '.log', '.tmp') -or
+               $_.FullName -match '\\(dist|build|__pycache__|\.venv)\\' -or
+               $_.Name -in @('mock.out', 'gw.out', 'mock.err', 'gw.err'))
+            }
+          if ($bad) {
+            Write-Host "::error::发现不应入库的文件："
+            $bad | ForEach-Object { Write-Host "  $($_.FullName)" }
+            exit 1
+          }
+          Write-Host "OK：未发现构建产物。"
+
+      - name: 确认没有硬编码的个人绝对路径
+        shell: pwsh
+        run: |
+          $hits = Select-String -Path (Get-ChildItem -Recurse -File -Include *.py,*.md,*.ps1,*.html,*.yml |
+                    Where-Object { $_.FullName -notmatch '\\\.git\\' }) -Pattern '[A-Za-z]:\\Users\\' -ErrorAction SilentlyContinue
+          if ($hits) {
+            Write-Host "::error::发现硬编码的个人路径："
+            $hits | ForEach-Object { Write-Host "  $($_.Path):$($_.LineNumber): $($_.Line.Trim())" }
+            exit 1
+          }
+          Write-Host "OK：未发现硬编码个人路径。"
